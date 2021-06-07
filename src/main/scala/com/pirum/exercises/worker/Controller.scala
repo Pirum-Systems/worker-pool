@@ -20,6 +20,7 @@ object Controller {
     Behaviors.setup { context =>
 
       val resultMapper: ActorRef[Result] = context.messageAdapter(res => ResultWrapper(res))
+      val workerFactory = (queue: ActorRef[Worker.TaskRequest]) => Worker(queue, resultMapper)
 
       def init(): Behavior[Command] =
         Behaviors.receiveMessagePartial {
@@ -28,7 +29,7 @@ object Controller {
             replyTo ! SimulationSchedulerRef(ref)
             Behaviors.same
           case Job(jobDetails) =>
-            context.watch(context.spawn(SimpleTaskQueue(jobDetails, resultMapper), "simple-queue"))
+            context.watch(context.spawn(SimpleTaskQueue(jobDetails, workerFactory), "simple-queue"))
             val timeouts = jobDetails.tasks.map(task => task.id).toSet
             Behaviors.withTimers { scheduler =>
               scheduler.startSingleTimer(Tick, jobDetails.timeout)

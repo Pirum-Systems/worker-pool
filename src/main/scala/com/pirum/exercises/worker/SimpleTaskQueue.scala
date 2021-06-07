@@ -2,7 +2,6 @@ package com.pirum.exercises.worker
 
 import akka.actor.typed._
 import akka.actor.typed.scaladsl.Behaviors
-import com.pirum.exercises.worker.Result._
 import com.pirum.exercises.worker.Worker.TaskAssignment
 import com.pirum.exercises.worker.Worker.TaskRequest
 
@@ -13,11 +12,14 @@ object SimpleTaskQueue {
   case class RequestWrapper(request: TaskRequest) extends Command
   case object Stop extends Command
 
-  def apply(jobDetails: JobDetails, resultsTo: ActorRef[Result]): Behavior[Command] =
+  def apply(
+    jobDetails: JobDetails,
+    workerFactory: ActorRef[TaskRequest] => Behavior[Worker.Command]
+  ): Behavior[Command] =
     Behaviors.setup { context =>
       val taskRequestMapper: ActorRef[TaskRequest] = context.messageAdapter(req => RequestWrapper(req))
       (0 until jobDetails.workers).map { id =>
-        context.watch(context.spawn(Worker(taskRequestMapper, resultsTo), s"worker-$id"))
+        context.watch(context.spawn(workerFactory(taskRequestMapper), s"worker-$id"))
       }
 
       def ready(tasks: List[Task], workers: Int): Behavior[Command] =
